@@ -1,44 +1,45 @@
 // src/components/molecules/v2/NewsList.tsx
+
 "use client";
 
 import { Button, Table, Space, Pagination, message } from 'antd';
-import useBlogs from '@/hooks/useBlogs';
-import { useState } from 'react';
+import { getAllArticle } from '@/hooks/article/getAllArticle';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useUser } from '@/hooks/useUser';
+import { ArticleResponse } from "@/types/article";
 
 const NewsList = () => {
   const [page, setPage] = useState(1);
-  const pageSize = 5; // Set the number of items per page
+  const pageSize = 5;
+  const [blogs, setBlogs] = useState<ArticleResponse['articles']>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Fetch articles when page changes
+  useEffect(() => {
+    const fetchArticles = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await getAllArticle(page, pageSize);
+        setBlogs(response.articles);
+        setTotal(response.totalCount);
+      } catch (err) {
+        setError('Failed to fetch articles');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const { blogs, loading, error, total } = useBlogs(page, pageSize);
-  const { user, error: userError } = useUser(); // Get user info and authentication status
+    fetchArticles();
+  }, [page]);
 
   const handlePageChange = (page: number) => {
     setPage(page);
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/article/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete blog');
-      }
-
-      message.success('Blog deleted successfully');
-      // Optionally, trigger a refetch of the blogs or update state
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Failed to delete blog');
-      console.error(error);
-    }
-  };
 
   if (loading) return <div className="text-center p-4">Loading...</div>;
 
@@ -64,14 +65,15 @@ const NewsList = () => {
               Edit
             </Button>
           </Link>
+          <Link href={`/dashboard/news/delete/${record.id}`}>
           <Button
             type="primary"
             danger
             icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
           >
             Delete
           </Button>
+          </Link>
         </Space>
       ),
     },

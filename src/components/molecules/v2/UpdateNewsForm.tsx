@@ -1,19 +1,13 @@
 'use client';
+import React, { useState, useEffect } from 'react';
+import { Input, Button, message } from 'antd';
+import { useRouter } from 'next/navigation';
 
-import React, { useEffect, useState } from 'react';
-import { Input, Button, message, Spin } from 'antd';
-import { useRouter, useSearchParams } from 'next/navigation'; // Use next/navigation for the router
-import TagsDropdown from '@/components/atoms/TagsDropdown';
-import CategoriesDropdown from '@/components/atoms/CategoriesDropdown';
-import UserDropdown from '@/components/atoms/UserDropdown';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
 
-const UpdateNewsForm: React.FC = () => {
+const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL as string;
+
+const UpdateNewsForm: React.FC<{ articleId: string }> = ({ articleId }) => {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const newsId = searchParams.get('id'); // Get 'id' parameter from the search params
-
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -23,47 +17,43 @@ const UpdateNewsForm: React.FC = () => {
   const [url, setUrl] = useState<string>('');
   const [urlToImage, setUrlToImage] = useState<string[]>([]);
   const [sourceName, setSourceName] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
+  const [reporter, setReporter] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
 
+  // ✅ **Fetch Article Data on Load**
   useEffect(() => {
- 
-
-    // Fetch the existing news article data using newsId
-    const fetchNewsData = async () => {
+    const fetchArticle = async () => {
       try {
-        const authToken = localStorage.getItem('authToken');
-        if (!authToken) throw new Error('No authentication token found');
+        const authToken = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+        if (!authToken) throw new Error("No authentication token found");
 
-        const response = await fetch(`http://localhost:8080/api/article/${newsId}`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-          },
+        const response = await fetch(`${NEXT_PUBLIC_API_URL}/article/${articleId}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
         });
 
-        const result = await response.json();
-        if (!response.ok) {
-          throw new Error(result.message || 'Failed to fetch news data');
-        }
+        if (!response.ok) throw new Error("Failed to fetch article");
 
-        // Populate the form with fetched data
-        setHeadline(result.headline);
-        setDescription(result.description);
-        setUrl(result.url);
-        setUrlToImage(result.urlToImage);
-        setKeywords(result.keywords);
-        setSourceName(result.sourceName);
-        setSelectedTagId(result.tagId);
-        setSelectedCategoryId(result.categoryId);
-        setSelectedUserId(result.userId);
+        const data = await response.json();
+        setHeadline(data.headline);
+        setDescription(data.description);
+        setUrl(data.url);
+        setUrlToImage(data.urlToImage || []);
+        setKeywords(data.keywords || []);
+        setSelectedTagId(data.tagId);
+        setSelectedCategoryId(data.categoryId);
+        setSelectedUserId(data.userId);
+        setSourceName(data.sourceName);
+        setReporter(data.reporter);
+        setLoading(false);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : 'Failed to fetch news data');
-        console.error('Fetch error:', error);
+        message.error(error instanceof Error ? error.message : "Failed to load article");
       }
     };
 
-    fetchNewsData();
-  }, [newsId]);
+    fetchArticle();
+  }, [articleId]);
 
+  // ✅ **Handle Update Submission**
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTagId || !selectedCategoryId || !selectedUserId || !headline || !description || !url || !sourceName) {
@@ -72,14 +62,16 @@ const UpdateNewsForm: React.FC = () => {
     }
 
     try {
-      const authToken = localStorage.getItem('authToken');
-      if (!authToken) throw new Error('No authentication token found');
+      const authToken = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+      if (!authToken) throw new Error("No authentication token found");
 
-      const response = await fetch(`http://localhost:8080/api/${newsId}`, {
+      console.log(process.env.NEXT_PUBLIC_API_URL)
+
+      const response = await fetch(`${NEXT_PUBLIC_API_URL}/article/${articleId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
           headline,
@@ -91,123 +83,111 @@ const UpdateNewsForm: React.FC = () => {
           categoryId: selectedCategoryId,
           userId: selectedUserId,
           sourceName,
-        }),
+          reporter
+        })
       });
 
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.message || 'Failed to update news');
+        throw new Error(result.message || "Failed to update news");
       }
 
-      message.success('News successfully updated');
+      message.success("News successfully updated");
+      router.push("/dashboard/news"); // ✅ **Navigate after update**
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Failed to update news');
-      console.error('Update error:', error);
+      message.error(error instanceof Error ? error.message : "Failed to update news");
     }
   };
 
-  const modules = {
-    toolbar: [
-      [{ header: [1, 2, 3, 4, 5, 6, false] }],
-      ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      [{ align: [] }],
-      ['link', 'image', 'video', 'code-block'],
-      [{ color: [] }, { background: [] }],
-      [{ font: [] }],
-      [{ script: 'sub' }, { script: 'super' }],
-      [{ indent: '-1' }, { indent: '+1' }],
-      ['clean'],
-    ],
-  };
-
+  if (loading) return <p>Loading...</p>;
 
   return (
     <form onSubmit={handleUpdate} className="p-8 shadow-lg bg-slate-50 rounded-lg min-w-full mx-auto space-y-6">
-      {loading ? <Spin size="large" className="flex justify-center items-center min-h-full" /> : (
-        <>
-          <h1 className="text-2xl font-bold">Update News Article</h1>
+      <h1 className="text-2xl font-bold">Update News Article</h1>
 
-          <div className="mb-4">
-            <label htmlFor="sourceName" className="block text-sm font-medium">Source Name</label>
-            <Input
-              type="text"
-              id="sourceName"
-              value={sourceName}
-              onChange={(e) => setSourceName(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-            />
-          </div>
+      <div className="mb-4">
+        <label htmlFor="sourceName" className="block text-sm font-medium">Source Name</label>
+        <Input
+          type="text"
+          id="sourceName"
+          value={sourceName}
+          onChange={(e) => setSourceName(e.target.value)}
+        />
+      </div>
 
-          <TagsDropdown onChange={(value) => setSelectedTagId(value)} />
-          <CategoriesDropdown onChange={(value) => setSelectedCategoryId(value)} />
-          <UserDropdown onChange={(value) => setSelectedUserId(value)} />
+      <div className="mb-4">
+        <label htmlFor="reporter" className="block text-sm font-medium">Reporter</label>
+        <Input
+          type="text"
+          id="reporter"
+          value={reporter}
+          onChange={(e) => setReporter(e.target.value)}
+        />
+      </div>
 
-          <div className="mb-4">
-            <label htmlFor="headline" className="block text-sm font-medium">Headline</label>
-            <Input
-              type="text"
-              id="headline"
-              value={headline}
-              onChange={(e) => setHeadline(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-            />
-          </div>
+      {/* <div className="flex space-x-4 mb-4">
+        <TagsDropdown onChange={(value) => setSelectedTagId(value)} selectedValue={selectedTagId} />
+        <CategoriesDropdown onChange={(value) => setSelectedCategoryId(value)} selectedValue={selectedCategoryId} />
+        <UserDropdown onChange={(value) => setSelectedUserId(value)} selectedValue={selectedUserId} />
+      </div> */}
 
-          <div className="mb-4">
-            <label htmlFor="description" className="block text-sm font-medium">Description</label>
-            <ReactQuill
-              id="description"
-              value={description}
-              onChange={(value) => setDescription(value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-              theme="snow"
-              placeholder="Enter description..."
-              style={{ height: '200px' }}
-              modules={modules}
-            />
-          </div>
+      <div className="mb-4">
+        <label htmlFor="headline" className="block text-sm font-medium">Headline</label>
+        <Input
+          type="text"
+          id="headline"
+          value={headline}
+          onChange={(e) => setHeadline(e.target.value)}
+        />
+      </div>
 
-          <div className="mb-4">
-            <label htmlFor="url" className="block text-sm font-medium">URL</label>
-            <Input
-              type="text"
-              id="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-            />
-          </div>
+      <div className="mb-4">
+        <label htmlFor="description" className="block text-sm font-medium">Description</label>
+        <textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={6}
+          className="w-full border p-2"
+        />
+      </div>
 
-          <div className="mb-4">
-            <label htmlFor="urlToImage" className="block text-sm font-medium">Image URLs (comma separated)</label>
-            <Input
-              type="text"
-              id="urlToImage"
-              value={urlToImage.join(', ')}
-              onChange={(e) => setUrlToImage(e.target.value.split(',').map((img) => img.trim()))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-            />
-          </div>
+      <div className="mb-4">
+        <label htmlFor="keywords" className="block text-sm font-medium">Keywords</label>
+        <Input
+          type="text"
+          id="keywords"
+          value={keywords.join(', ')}
+          onChange={(e) => setKeywords(e.target.value.split(',').map(s => s.trim()))}
+        />
+      </div>
 
-          <div className="mb-4">
-            <label htmlFor="keywords" className="block text-sm font-medium">Keywords (comma separated)</label>
-            <Input
-              type="text"
-              id="keywords"
-              value={keywords.join(', ')}
-              onChange={(e) => setKeywords(e.target.value.split(',').map((kw) => kw.trim()))}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-            />
-          </div>
+      <div className="mb-4">
+        <label htmlFor="url" className="block text-sm font-medium">URL</label>
+        <Input
+          type="text"
+          id="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+      </div>
 
-          <Button type="primary" htmlType="submit" className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
-            Update News
-          </Button>
-        </>
-      )}
+      <div className="mb-4">
+        <label htmlFor="urlToImage" className="block text-sm font-medium">Image URLs (comma separated)</label>
+        <Input
+          type="text"
+          id="urlToImage"
+          value={urlToImage.join(', ')}
+          onChange={(e) => setUrlToImage(e.target.value.split(',').map(s => s.trim()))}
+        />
+      </div>
+
+      <Button type="primary" htmlType="submit" className="w-full bg-yellow-400 hover:bg-yellow-500 text-black">
+        Update News
+      </Button>
     </form>
   );
 };
 
 export default UpdateNewsForm;
+

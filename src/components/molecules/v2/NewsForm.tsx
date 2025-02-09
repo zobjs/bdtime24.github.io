@@ -4,8 +4,10 @@ import { Input, Button, message } from 'antd';
 import TagsDropdown from '@/components/atoms/TagsDropdown';
 import CategoriesDropdown from '@/components/atoms/CategoriesDropdown';
 import UserDropdown from '@/components/atoms/UserDropdown';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+
+const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL as string;
+
+
 
 const NewsForm: React.FC = () => {
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
@@ -17,6 +19,8 @@ const NewsForm: React.FC = () => {
   const [url, setUrl] = useState<string>('');
   const [urlToImage, setUrlToImage] = useState<string[]>([]);
   const [sourceName, setSourceName] = useState<string>('');
+  const [reporter, setReporter] = useState<string>('');
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,12 +28,13 @@ const NewsForm: React.FC = () => {
       message.error('Please fill all fields');
       return;
     }
-
+  
     try {
-      const authToken = localStorage.getItem('authToken');
+      // Ensure localStorage is only accessed in the browser
+      const authToken = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
       if (!authToken) throw new Error('No authentication token found');
-
-      const response = await fetch('http://localhost:8080/api/article/create', {
+  
+      const response = await fetch(`${NEXT_PUBLIC_API_URL}/article/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,23 +49,26 @@ const NewsForm: React.FC = () => {
           tagId: selectedTagId,
           categoryId: selectedCategoryId,
           userId: selectedUserId,
-          sourceName
+          sourceName,
+          reporter
         })
       });
-
+  
       const result = await response.json();
       if (!response.ok) {
         throw new Error(result.message || 'Failed to submit news');
       }
-
+  
       message.success('News successfully created');
-      // Clear form
+  
+      // Clear form fields after successful submission
       setHeadline('');
       setDescription('');
       setUrl('');
       setUrlToImage([]);
       setKeywords([]);
       setSourceName('');
+      setReporter('');
       setSelectedTagId(null);
       setSelectedCategoryId(null);
       setSelectedUserId(null);
@@ -69,27 +77,17 @@ const NewsForm: React.FC = () => {
       console.error('Submission error:', error);
     }
   };
+  
 
-  // Define toolbar options
-  const modules = {
-    toolbar: [
-      [{ header: [1, 2, 3, 4, 5, 6, false] }],
-      ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-      [{ list: 'ordered' }, { list: 'bullet' }],
-      [{ align: [] }],
-      ['link', 'image', 'video', 'code-block'],
-      [{ color: [] }, { background: [] }],
-      [{ font: [] }],
-      [{ script: 'sub' }, { script: 'super' }],
-      [{ indent: '-1' }, { indent: '+1' }],
-      ['clean']
-    ]
-  };
+ 
 
   return (
-    <form onSubmit={handleSubmit} className="p-8 shadow-lg bg-slate-50 rounded-lg min-w-full mx-auto space-y-6">
+
+
+  <form onSubmit={handleSubmit} className="p-8 shadow-lg bg-slate-50 rounded-lg min-w-full mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Create News Article</h1>
 
+      {/* Source Name Field */}
       <div className="mb-4">
         <label htmlFor="sourceName" className="block text-sm font-medium text-pu">Source Name</label>
         <Input
@@ -101,10 +99,32 @@ const NewsForm: React.FC = () => {
         />
       </div>
 
-      <TagsDropdown onChange={(value) => setSelectedTagId(value)} />
-      <CategoriesDropdown onChange={(value) => setSelectedCategoryId(value)} />
-      <UserDropdown onChange={(value) => setSelectedUserId(value)} />
+      {/* Reporter Field */}
+      <div className="mb-4">
+        <label htmlFor="reporter" className="block text-sm font-medium">Reporter</label>
+        <Input
+          type="text"
+          id="reporter"
+          value={reporter}
+          onChange={(e) => setReporter(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
+        />
+      </div>
 
+      {/* Tag, Category, and User Dropdowns */}
+      <div className="flex space-x-4 mb-4">
+        <div className="flex-1">
+          <TagsDropdown onChange={(value) => setSelectedTagId(value)} />
+        </div>
+        <div className="flex-1">
+          <CategoriesDropdown onChange={(value) => setSelectedCategoryId(value)} />
+        </div>
+        <div className="flex-1">
+          <UserDropdown onChange={(value) => setSelectedUserId(value)} />
+        </div>
+      </div>
+
+      {/* Headline Field */}
       <div className="mb-4">
         <label htmlFor="headline" className="block text-sm font-medium">Headline</label>
         <Input
@@ -116,21 +136,21 @@ const NewsForm: React.FC = () => {
         />
       </div>
 
+      {/* Description Field */}
       <div className="mb-4">
         <label htmlFor="description" className="block text-sm font-medium">Description</label>
-        <ReactQuill
-           id="description"
-           value={description}
-           onChange={(value) => setDescription(value)}
-           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-           theme="snow"
-           placeholder="Enter description..."
-           style={{ height: '200px' }}
-           modules={modules}
-           // Optional: Add error boundary or logging
+        <textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
+          placeholder="Enter description..."
+          rows={6} 
         />
       </div>
-      <div>
+
+      {/* Keywords Field */}
+      <div className="mb-4">
         <label htmlFor="keywords" className="block text-sm font-medium">Keywords</label>
         <Input
           type="text"
@@ -140,6 +160,8 @@ const NewsForm: React.FC = () => {
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
         />
       </div>
+
+      {/* URL Field */}
       <div className="mb-4">
         <label htmlFor="url" className="block text-sm font-medium">URL</label>
         <Input
@@ -151,6 +173,7 @@ const NewsForm: React.FC = () => {
         />
       </div>
 
+      {/* Image URLs Field */}
       <div className="mb-4">
         <label htmlFor="urlToImage" className="block text-sm font-medium">Image URLs (comma separated)</label>
         <Input
@@ -158,17 +181,6 @@ const NewsForm: React.FC = () => {
           id="urlToImage"
           value={urlToImage.join(', ')}
           onChange={(e) => setUrlToImage(e.target.value.split(',').map(s => s.trim()))}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
-        />
-      </div>
-
-      <div className="mb-4">
-        <label htmlFor="keywords" className="block text-sm font-medium">Keywords (comma separated)</label>
-        <Input
-          type="text"
-          id="keywords"
-          value={keywords.join(', ')}
-          onChange={(e) => setKeywords(e.target.value.split(',').map(s => s.trim()))}
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50"
         />
       </div>
